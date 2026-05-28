@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plantilla A4 - Compra con Propósito</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #2E7D32; /* Verde principal */
+            --light-green: #E8F5E9; /* Verde claro fondo */
+            --accent-green: #4CAF50; /* Verde acento */
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Fondo gris claro fuera de la hoja */
+            display: flex;
+            justify-content: center;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        /* Configuración específica para tamaño A4 */
+        .page-a4 {
+            width: 210mm;
+            height: 297mm;
+            background-color: white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            padding: 20mm; /* Márgenes internos */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Reglas de impresión para asegurar que salga en A4 sin márgenes del navegador */
+        @media print {
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .page-a4 {
+                box-shadow: none;
+                width: 210mm;
+                height: 297mm;
+            }
+            /* Ocultar botones interactivos al imprimir */
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Decoración de hojas (esquinas) */
+        .leaf-bg {
+            position: absolute;
+            opacity: 0.1;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .leaf-top-left { top: -20px; left: -20px; transform: rotate(45deg); width: 200px; }
+        .leaf-bottom-right { bottom: -20px; right: -20px; transform: rotate(-135deg); width: 200px; }
+        
+        /* Contenedores de inputs ocultos y áreas editables */
+        .editable-area {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .editable-image {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .editable-image:hover::after {
+            content: 'Clic para cambiar imagen';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+            width: max-content;
+        }
+
+        [contenteditable="true"] {
+            outline: none;
+            transition: background-color 0.2s;
+        }
+        
+        [contenteditable="true"]:hover {
+            background-color: rgba(76, 175, 80, 0.1);
+            border-radius: 4px;
+        }
+        
+        [contenteditable="true"]:focus {
+            background-color: rgba(76, 175, 80, 0.2);
+            border-radius: 4px;
+        }
+
+        /* Controls panel for screen viewing */
+        .controls-panel {
+            position: fixed;
+            left: 20px;
+            top: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 100;
+            width: 250px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls-panel no-print">
+        <h3 class="font-bold text-lg text-gray-800 mb-4">Panel de Control</h3>
+        <p class="text-sm text-gray-600 mb-4">Haz clic en los textos y en los recuadros de imagen en la hoja para editarlos.</p>
+        
+        <!-- Nuevo input para el link del QR -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Enlace para el QR:</label>
+            <input type="text" id="qrLinkInput" placeholder="Ej: https://mi-empresa.com" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            <button onclick="generateQR()" class="mt-2 w-full bg-[#4CAF50] hover:bg-[#388E3C] text-white text-sm font-bold py-1.5 px-4 rounded shadow transition duration-200">
+                Generar QR
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <button onclick="window.print()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow transition duration-200">
+                Imprimir / Guardar PDF
+            </button>
+            <button onclick="resetTemplate()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded shadow transition duration-200">
+                Restaurar Plantilla
+            </button>
+        </div>
+        
+        <div class="mt-6 text-xs text-gray-500">
+            * Para subir a Vercel, simplemente despliega este archivo index.html.
+        </div>
+    </div>
+
+    <div class="page-a4" id="document-content">
+        <!-- Fondos decorativos -->
+        <!-- Usamos SVGs simples para las hojas de decoración -->
+        <svg class="leaf-bg leaf-top-left" viewBox="0 0 100 100" fill="var(--primary-green)">
+            <path d="M0,100 C0,100 0,0 50,0 C100,0 100,100 100,100 C100,100 50,80 0,100 Z"/>
+        </svg>
+        <svg class="leaf-bg leaf-bottom-right" viewBox="0 0 100 100" fill="var(--primary-green)">
+            <path d="M0,100 C0,100 0,0 50,0 C100,0 100,100 100,100 C100,100 50,80 0,100 Z"/>
+        </svg>
+
+        <div class="relative z-10 flex flex-col h-full">
+            
+            <header class="text-center mb-8">
+                <h1 contenteditable="true" class="text-4xl font-extrabold text-[#2E7D32] mb-3 tracking-tight">
+                    COMPRAS CON PROPÓSITO
+                </h1>
+                <h2 contenteditable="true" class="text-2xl font-semibold text-gray-700">
+                    Directamente del Productor
+                </h2>
+                <div class="h-1 w-24 bg-[#4CAF50] mx-auto mt-4 rounded"></div>
+            </header>
+
+            <main class="flex-grow flex flex-col items-center justify-center">
+                
+                <div class="bg-[#E8F5E9] p-8 rounded-3xl border-2 border-[#4CAF50] border-dashed w-full max-w-lg shadow-sm text-center mb-8 relative">
+                    <!-- Decoración interna -->
+                    <div class="absolute top-4 left-4 text-[#4CAF50] opacity-50">🌱</div>
+                    <div class="absolute bottom-4 right-4 text-[#4CAF50] opacity-50">🌿</div>
+                    
+                    <h3 contenteditable="true" class="text-xl font-bold text-[#2E7D32] mb-6">
+                        Escanea y compra aquí
+                    </h3>
+
+                    <!-- Contenedor del QR generado por API -->
+                    <div class="mx-auto w-64 h-64 bg-white border-2 border-gray-300 rounded-xl flex items-center justify-center mb-6 overflow-hidden editable-area">
+                        <!-- Usamos la API de quickchart para generar el QR -->
+                        <img id="qrImage" src="https://quickchart.io/qr?text=https://compost.ar&size=400&margin=2" alt="Código QR" class="w-full h-full object-cover">
+                    </div>
+                    
+                    <!-- Mensaje principal -->
+                    <p contenteditable="true" class="text-gray-700 text-lg leading-relaxed px-4">
+                        Con tu compra directa a través de este enlace, fomentamos un <strong>precio justo</strong> para todos. Colaboras con una compra con propósito.
+                    </p>
+                    <p contenteditable="true" class="text-[#2E7D32] font-semibold mt-4 text-lg">
+                        ¡Compost.ar es Empresa B!
+                    </p>
+                </div>
+
+            </main>
+
+            <!-- Footer con fondo verde -->
+            <footer class="mt-auto bg-[#2E7D32] -mx-[20mm] -mb-[20mm] px-[20mm] py-8 text-white">
+                <div class="border-t border-green-400 pt-6">
+                    <p class="text-center text-sm text-green-100 mb-6 uppercase tracking-widest font-semibold">Alianzas Estratégicas</p>
+                    
+                    <div class="flex justify-center items-center gap-12">
+                        <!-- Logo Agroconsulta -->
+                        <div class="flex flex-col items-center">
+                            <div class="w-40 h-20 border-2 border-white/30 border-dashed rounded flex items-center justify-center editable-image bg-white/10 overflow-hidden" onclick="triggerFileInput('logoAgroInput')">
+                                <img id="logoAgroImage" src="https://placehold.co/200x100/2E7D32/ffffff?text=Logo\nBlanco" alt="Logo Agroconsulta" class="max-w-full max-h-full object-contain p-2 filter brightness-0 invert">
+                                <input type="file" id="logoAgroInput" class="hidden" accept="image/*" onchange="previewImage(event, 'logoAgroImage')">
+                            </div>
+                            <span contenteditable="true" class="text-xs text-green-100 mt-3 font-medium">Agroconsulta</span>
+                        </div>
+
+                        <div class="h-12 w-px bg-green-400"></div> <!-- Separador -->
+
+                        <!-- Logo Compost.ar -->
+                        <div class="flex flex-col items-center">
+                            <div class="w-40 h-20 border-2 border-white/30 border-dashed rounded flex items-center justify-center editable-image bg-white/10 overflow-hidden" onclick="triggerFileInput('logoCompostInput')">
+                                <img id="logoCompostImage" src="https://placehold.co/200x100/2E7D32/ffffff?text=Logo\nCompost.ar" alt="Logo Compost.ar" class="max-w-full max-h-full object-contain p-2">
+                                <input type="file" id="logoCompostInput" class="hidden" accept="image/*" onchange="previewImage(event, 'logoCompostImage')">
+                            </div>
+                            <span contenteditable="true" class="text-xs text-green-100 mt-3 font-medium">Compost.ar</span>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+
+        </div>
+    </div>
+
+    <script>
+        // Función para activar el input de archivo correspondiente
+        function triggerFileInput(inputId) {
+            document.getElementById(inputId).click();
+        }
+
+        // Función para generar QR desde el link usando QuickChart API
+        function generateQR() {
+            const linkInput = document.getElementById('qrLinkInput').value;
+            if (!linkInput) {
+                alert('Por favor, ingresa un enlace para el QR.');
+                return;
+            }
+            
+            // Construir la URL de la API de QuickChart
+            // size=400 (resolución), margin=2 (espacio alrededor)
+            const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(linkInput)}&size=400&margin=2`;
+            
+            const qrImage = document.getElementById('qrImage');
+            qrImage.src = qrUrl;
+            
+            // Efecto visual de carga
+            qrImage.style.opacity = '0.5';
+            qrImage.onload = function() {
+                qrImage.style.opacity = '1';
+            }
+        }
+
+        // Función para leer la imagen subida y mostrarla
+        function previewImage(event, imageId) {
+            const input = event.target;
+            const reader = new FileReader();
+
+            reader.onload = function(){
+                const dataURL = reader.result;
+                const imageElement = document.getElementById(imageId);
+                imageElement.src = dataURL;
+                // Quitar el borde punteado una vez que se carga una imagen real
+                imageElement.parentElement.classList.remove('border-dashed', 'border-white/30', 'bg-white/10');
+                imageElement.parentElement.classList.add('border-solid', 'border-transparent', 'bg-transparent');
+                
+                // Remover el filtro invert si se sube una imagen real (asumimos que la suben del color correcto)
+                if(imageElement.classList.contains('invert')){
+                    imageElement.classList.remove('filter', 'brightness-0', 'invert');
+                }
+            };
+
+            if(input.files && input.files[0]) {
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // Función para restaurar la plantilla (recargar la página)
+        function resetTemplate() {
+            if(confirm('¿Estás seguro de que quieres borrar todos los cambios y restaurar la plantilla original?')) {
+                window.location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
